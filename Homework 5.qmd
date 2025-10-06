@@ -1,0 +1,101 @@
+---
+title: "Homework 5"
+format: html
+editor: visual
+---
+
+# Introduction
+
+For this assignment, we will be conducting exploratory data analysis (EDA) on two Portuguese student achievement datasets.
+
+Before we get started, let's load in the suite of core tidyverse packages. 
+
+```{r}
+library(tidyverse)
+```
+
+# Task 1: Reading in and Modifying the Data
+
+Now let's read in the two datasets -- the math performance dataset and the Portuguese language performance dataset, combine them, and do some initial manipulation. 
+
+To start, we can use code provided by the dataset creators, with slight modifications, and see how that code performs. The code reads in the two datasets and combines them. We will print the first 10 rows and first few variables of the combined dataset. 
+
+```{r}
+math_df<-read.table("student-mat.csv",sep=";",header=TRUE)
+port_df<-read.table("student-por.csv",sep=";",header=TRUE)
+
+comb_df<-merge(math_df,port_df,by=c("school","sex","age","address","famsize","Pstatus","Medu","Fedu","Mjob","Fjob","reason","nursery","internet"))
+
+print(comb_df,n=10)
+```
+
+No major issues stand out, but the `Base R` functions also don't give us much feedback. Let's use tidyverse functions to replicate the provided code. 
+
+```{r}
+math_tbl<-read_csv2("student-mat.csv")
+port_tbl<-read_csv2("student-por.csv")
+
+#Note that "by" variables do not uniquely identify individuals
+comb_tbl_1<-inner_join(math_tbl,port_tbl,
+                     by=c("school","sex","age","address","famsize","Pstatus",
+                          "Medu","Fedu","Mjob","Fjob","reason","nursery","internet"))
+```
+
+Ah, something we missed! Two observations in each dataset are identical across the "by" variables. These may be twin brothers. Let's merge on more variables to overcome this issue.  
+
+```{r}
+join_cols<-setdiff(names(math_tbl),c("G1","G2","G3","paid","absences"))
+
+comb_tbl_2<-inner_join(math_tbl,port_tbl,
+                     by=join_cols)
+```
+
+Great, no more issues with many-to-many relationships! 
+
+As a final step, let's identify a few categorical variables of interest and convert them to factors. We will focus on the following:
+- `Pstatus`: parents' cohabitation status, with `T` indicating the parents live together and `A` indicating they live apart
+- `famsup`: a family educational support indicator (yes/no)
+- `activities`: an extracurricular activities indicator (yes/no)
+- `internet`: a home internet access indicator (yes/no)
+
+We will convert these variables to factors across the individual math and Portuguese tibbles and the second combined tibble. 
+
+```{r}
+math_tbl<- math_tbl |>
+  mutate(Pstatus=factor(Pstatus,levels=c("T","A"),labels=c("Together","Apart")),famsup=as.factor(famsup),activities=as.factor(activities),internet=as.factor(internet))
+
+port_tbl<-port_tbl |>
+  mutate(Pstatus=factor(Pstatus,levels=c("T","A"),labels=c("Together","Apart")),famsup=as.factor(famsup),activities=as.factor(activities),internet=as.factor(internet))
+
+comb_tbl_2<-comb_tbl_2 |>
+  mutate(Pstatus=factor(Pstatus,levels=c("T","A"),labels=c("Together","Apart")),famsup=as.factor(famsup),activities=as.factor(activities),internet=as.factor(internet))
+```
+
+
+
+# Task 2: 
+
+```{r}
+str(comb_tbl_2)
+```
+
+Looking through the data, there are several variables `R` set to numeric type, but that are truly categorical variables. Thus, we can either convert those to character of factor type. For example, the values for `Medu` and `Fedu` are actually codes specifying levels of educational attainment -- a value of 2 for `Medu` indicates a 5th to 9th grade education for the student's mother. Let's convert these variables to factors. We won't worry about labels as these variables are not the focus of our analysis. Note that `failures` is a tricky variable to classify. It is the number of classes failed, but it is top-coded at 4 -- a value of 4 indicates 4 or more failed classes. Thus, we will likely have the best results if we treat `failures` as a factor. 
+
+```{r}
+comb_tbl_2<-comb_tbl_2 |>
+  mutate(across(c(Medu,Fedu,traveltime,studytime,failures,famrel:health),
+                ~as.factor(.x)))
+```
+
+Let's also explore any missing values by initially counting the number of missing values per variable. Fortunately, there are no missing values!
+
+```{r}
+na_counts<-comb_tbl_2 |>
+  summarize(across(everything(),~sum(is.na(.x))))
+
+na_counts
+```
+
+
+
+
