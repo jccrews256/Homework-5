@@ -24,7 +24,9 @@ To start, we can use code provided by the dataset creators, with slight modifica
 math_df<-read.table("student-mat.csv",sep=";",header=TRUE)
 port_df<-read.table("student-por.csv",sep=";",header=TRUE)
 
-comb_df<-merge(math_df,port_df,by=c("school","sex","age","address","famsize","Pstatus","Medu","Fedu","Mjob","Fjob","reason","nursery","internet"))
+comb_df<-merge(math_df,port_df,by=c("school","sex","age","address","famsize",
+                                    "Pstatus","Medu","Fedu","Mjob","Fjob",
+                                    "reason","nursery","internet"))
 
 print(comb_df,n=10)
 ```
@@ -41,7 +43,7 @@ comb_tbl_1<-inner_join(math_tbl,port_tbl,
                           "Medu","Fedu","Mjob","Fjob","reason","nursery","internet"))
 ```
 
-Ah, something we missed! Two observations in each dataset are identical across the "by" variables. These may be twin brothers. Let's merge on more variables to overcome this issue.  
+Ah, something we missed! A few observations in each dataset are identical across the "by" variables. These observations may reflect siblings of the same age (e.g., twins), or simply identical by coincidence. Let's merge on more variables to overcome this issue.  
 
 ```{r}
 join_cols<-setdiff(names(math_tbl),c("G1","G2","G3","paid","absences"))
@@ -62,13 +64,19 @@ We will convert these variables to factors across the individual math and Portug
 
 ```{r}
 math_tbl<- math_tbl |>
-  mutate(Pstatus=factor(Pstatus,levels=c("T","A"),labels=c("Together","Apart")),famsup=as.factor(famsup),activities=as.factor(activities),internet=as.factor(internet))
+  mutate(Pstatus=factor(Pstatus,levels=c("T","A"),labels=c("Together","Apart")),
+         famsup=as.factor(famsup),activities=as.factor(activities),
+         internet=as.factor(internet))
 
 port_tbl<-port_tbl |>
-  mutate(Pstatus=factor(Pstatus,levels=c("T","A"),labels=c("Together","Apart")),famsup=as.factor(famsup),activities=as.factor(activities),internet=as.factor(internet))
+  mutate(Pstatus=factor(Pstatus,levels=c("T","A"),labels=c("Together","Apart")),
+         famsup=as.factor(famsup),activities=as.factor(activities),
+         internet=as.factor(internet))
 
 comb_tbl_2<-comb_tbl_2 |>
-  mutate(Pstatus=factor(Pstatus,levels=c("T","A"),labels=c("Together","Apart")),famsup=as.factor(famsup),activities=as.factor(activities),internet=as.factor(internet))
+  mutate(Pstatus=factor(Pstatus,levels=c("T","A"),labels=c("Together","Apart")),
+         famsup=as.factor(famsup),activities=as.factor(activities),
+         internet=as.factor(internet))
 ```
 
 
@@ -82,6 +90,7 @@ str(comb_tbl_2)
 Looking through the data, there are several variables `R` set to numeric type, but that are truly categorical variables. Thus, we can either convert those to character of factor type. For example, the values for `Medu` and `Fedu` are actually codes specifying levels of educational attainment -- a value of 2 for `Medu` indicates a 5th to 9th grade education for the student's mother. Let's convert these variables to factors. We won't worry about labels as these variables are not the focus of our analysis. Note that `failures` is a tricky variable to classify. It is the number of classes failed, but it is top-coded at 4 -- a value of 4 indicates 4 or more failed classes. Thus, we will likely have the best results if we treat `failures` as a factor. 
 
 ```{r}
+#Converting non-numeric variables to factors
 comb_tbl_2<-comb_tbl_2 |>
   mutate(across(c(Medu,Fedu,traveltime,studytime,failures,famrel:health),
                 ~as.factor(.x)))
@@ -90,12 +99,171 @@ comb_tbl_2<-comb_tbl_2 |>
 Let's also explore any missing values by initially counting the number of missing values per variable. Fortunately, there are no missing values!
 
 ```{r}
+#Counting missing values by column/variable
 na_counts<-comb_tbl_2 |>
   summarize(across(everything(),~sum(is.na(.x))))
 
 na_counts
 ```
 
+### Categorical Variable Analysis
+
+#### a. Contingency Tables using `table()`
+
+Let's construct some contingency tables for our categorical variables of interest to understand their sample distributions. 
+
+We can start by constructing a one-way contingency table for `internet` to see the frequencies of students with and without internet.
+
+```{r}
+#Creating a one-way table for internet access indicator
+table(comb_tbl_2$internet)
+```
+
+So 272 students in our sample have internet, compared to 48 who do not. 
+
+Next, let's create a two-way table using `internet` and `famsup` to see if there is a relationship between internet access and family education support. 
+
+```{r}
+#Creating a two-way table for internet access and family education support indicators
+table(comb_tbl_2$internet,comb_tbl_2$famsup,dnn=c("internet","family_support"))
+```
+
+First, note that the majority of students have both family support and internet: 174 students. It does not seem that family support and internet access are related, as the share of those without family support who have internet ($19/(19+98)=0.838$) is similar to the share for those with family support ($174/(29+174)=0.857$). 
+
+Finally, let's look at a three-way table using `Pstatus`, `famsup`, and `activities` to see how counts vary across combinations of these variables. 
+
+```{r}
+#Creating a three-way table for parental living status, family support, and 
+#extracurricular activity participation indicators
+table(comb_tbl_2$Pstatus,comb_tbl_2$famsup,comb_tbl_2$activities,
+      dnn=c("parental_status","family_support","extracurr_activities"))
+```
+
+There is a lot going on here, so how do we interpret the tables? As an example, the value `97` in the second table indicates there are 97 students who participate in extracurricular activities, have parents who live together, and have family education support. 
+
+
+### Testing Methods for Creating Conditional Two-Way Tables
+
+There are a few ways to create conditional two-way tables, or two-way contingency tables conditional on the value of a third variable. 
+
+First, we can subset the data and then create the table. Let's test this by creating a two-way table for `Pstatus` and `famsup` for only students who have internet. 
+
+```{r}
+#Filtering to only those students with internet access
+comb_tbl_2_internet<- comb_tbl_2 |>
+  filter(internet=="yes")
+
+#Creating conditional two-way table for parental living status and family 
+#support indicators
+table(comb_tbl_2_internet$Pstatus,comb_tbl_2_internet$famsup)
+```
+
+Another way to create this table is to create a three-way table using `Pstatus`, `famsup`, and `internet` and subsetting to the two-way table corresponding to `internet=="yes"`. 
+
+```{r}
+#Creating two-way table for parental living status and family 
+#support indicators, conditional on having internet access
+table(comb_tbl_2$Pstatus,comb_tbl_2$famsup,comb_tbl_2$internet)[,,"yes"]
+```
+
+As we expect, we get identical results. What do these counts tell us? Among these students with internet access at home, a slightly lower share of those whose parents live together ($156/(90+156)=0.634$) report having family education support than those whose parents live separately ($18/(8+18)=0.692$). However, there are only 26 students who have internet and whose parents live apart, so it is unlikely this difference is statistically significant. 
+
+### Contingency Tables in the tidyverse
+
+While we have so far used the `Base R` `table()` function to create tables, we can also create tables using tidyverse functions. Let's create a two-way table for `Pstatus` and `famsup` unconditional `internet`. 
+
+```{r}
+#Creating counts by value of Pstatus and famsup
+comb_tbl_2 |>
+  group_by(Pstatus,famsup) |>
+  summarize(count=n())
+```
+
+This produces a nice, clean tibble, but it would be nice to have the table in the standard two-way table structure. Let's make that change. 
+
+```{r}
+#Creating counts by value of Pstatus and famsup, and converting to a standard 
+#contingency table form
+comb_tbl_2 |>
+  group_by(Pstatus,famsup) |>
+  summarize(count=n()) |>
+  pivot_wider(names_from=famsup,values_from=count,names_prefix="famsup_")
+```
+
+This is easier to interpret. Looking at the values, it is now the case that the family support shares are roughly equal for those whose parents live together ($183/(106+183)0.633$) and those whose parents live apart ($20/(20+11)=0.645$).
+
+
+### Creating Bar Plots in `ggplot2`
+
+As the final step in our analysis of the categorical variables we selected, we will make bar plots using `ggplot2`. 
+
+Let's start by creating a stacked bar chart to compare internet access rates between students who do and do not participate in extracurricular activities. 
+
+```{r}
+#Creating a stacked bar plot for extracurricular activity participation broken down
+#by whether or not students have internet
+ggplot(data=comb_tbl_2, aes(x=activities,fill=internet)) + 
+  geom_bar() + 
+  labs(x="Extracurricular Activities?",
+       title="Internet Access Breakdown by Extracurricular Activity Participation") +
+  scale_fill_discrete("Internet Access?")
+```
+
+Interestingly, a larger share of students who do not participate in extracurricular activities do not have internet in comparison to those who do participate. It may be that internet access and activity participation both correlate with financial well-being variables like income. 
+
+Next, let's create a side-by-side bar plot to visualize the sample distribution of the `activities` for those who do and do not have parents who live together. 
+
+```{r}
+#Creating a side-by-side bar plot plotting student counts by parental living 
+#arrangement and extracurricular activity participation
+ggplot(data=comb_tbl_2, aes(x=Pstatus,fill=activities)) + 
+  geom_bar(position="dodge") + 
+  labs(x="Parental Living Arrangement",
+       title="Extracurricular Activity Participation by Parental Living Arrangement") +
+  scale_fill_discrete("Extracurricular Activities?")
+```
+
+Looking at this plot, more than half of students whose parents live together participate in extracurricular activities, but less than half of students whose parents live apart do. 
 
 
 
+# Numeric Variable Analysis
+
+Next, we will analyze the quantitative variables in the dataset, starting with measures of center and spread before transitioning to the evaluation of the relationship between variables. 
+
+### Initial Measures of Center and Spread
+
+To start, we can look at the mean, median, standard deviation, and the interquartile range (IQR) for a few variables. Let's consider the first period grade in math `G1.x`, the second period grade in math (`G2.x`), and the final grade in math (`G3.x`). 
+
+```{r}
+comb_tbl_2 |>
+  summarize(across(c("G1.x", "G2.x", "G3.x"),list("mean"=mean,"median"=median,
+                                                 "sd"=sd,"IQR"=IQR),.names="{.fn}_{.col}"))
+```
+
+A few things stand out when comparing the grade variables, which range from 0 to 20. First, mean grade trends down across the year. Second, standard deviation trends up across the year. Meanwhile, the medians and IQRs are the same across all three grades. This indicates that the differences in the distributions for these three sets of grades are likely in the tails. 
+
+Let's regenerate the same metrics, but only for students who have internet access at home. 
+
+```{r}
+comb_tbl_2 |>
+  filter(internet=="yes") |>
+  summarize(across(c("G1.x", "G2.x", "G3.x"),list("mean"=mean,"median"=median,
+                                                 "sd"=sd,"IQR"=IQR),.names="{.fn}_{.col}"))
+```
+
+Focusing on the means, we see the same downward trend. However, the drop from period one to period two is now minimal; the median period two grade is actually higher than that of period one. Further, the conditional means are higher than the unconditional means across all periods, a potential indication that home internet access supports learning. 
+
+
+### Measures of Center and Spread by Group
+
+We can also explore the measures of center and spread for each level of a factor variable. Let's look at mean, median, and standard deviation of the three Portuguese language grades (`G1.y`,`G2.y`,`G3.y`) for each level of `Pstatus` -- the indicator for whether parents live together or apart. 
+
+```{r}
+comb_tbl_2 |>
+  group_by(Pstatus) |>
+  summarize(across(c("G1.y", "G2.y", "G3.y"),list("mean"=mean,"median"=median,
+                                                 "sd"=sd,"IQR"=IQR),.names="{.fn}_{.col}"))
+```
+
+The most notable finding is that the difference between mean grades widens across the year between these two groups, with the average student whose parents live apart performing increasingly better than their average peer whose parents live together.  
