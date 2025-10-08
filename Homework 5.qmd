@@ -12,6 +12,7 @@ Before we get started, let's load in the suite of core tidyverse packages.
 
 ```{r}
 library(tidyverse)
+library(knitr)
 ```
 
 # Task 1: Reading in and Modifying the Data
@@ -33,7 +34,7 @@ comb_df<-merge(math_df,port_df,by=c("school","sex","age","address","famsize",
                                     "reason","nursery","internet"))
 
 #Printing first 10 rows of the result
-print(comb_df,n=10)
+head(comb_df)
 ```
 
 No major issues stand out, but the `Base R` functions also don't give us much feedback. 
@@ -74,6 +75,8 @@ comb_tbl_2<-inner_join(math_tbl,port_tbl,
 
 Great, no more issues with many-to-many relationships! We may be losing students due to inconsistencies in the joining variables across datasets, but at least we can now be more confident we have not incorrectly assigned grades to the wrong student. 
 
+Note that I convert the final combined tibble into an interactive in the next step so that the grader can review my work for Task 1.
+
 
 ### Converting Key Categorical Variables to Factors
 
@@ -103,6 +106,9 @@ comb_tbl_2<-comb_tbl_2 |>
   mutate(Pstatus=factor(Pstatus,levels=c("T","A"),labels=c("Together","Apart")),
          famsup=as.factor(famsup),activities=as.factor(activities),
          internet=as.factor(internet))
+
+#Printing the final combined tibble as an interactiv table
+kable(comb_tbl_2)
 ```
 
 
