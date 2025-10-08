@@ -18,41 +18,64 @@ library(tidyverse)
 
 Now let's read in the two datasets -- the math performance dataset and the Portuguese language performance dataset, combine them, and do some initial manipulation. 
 
+### Using Provided Code
+
 To start, we can use code provided by the dataset creators, with slight modifications, and see how that code performs. The code reads in the two datasets and combines them. We will print the first 10 rows and first few variables of the combined dataset. 
 
 ```{r}
+#Reading in data files
 math_df<-read.table("student-mat.csv",sep=";",header=TRUE)
 port_df<-read.table("student-por.csv",sep=";",header=TRUE)
 
+#Merging datasets
 comb_df<-merge(math_df,port_df,by=c("school","sex","age","address","famsize",
                                     "Pstatus","Medu","Fedu","Mjob","Fjob",
                                     "reason","nursery","internet"))
 
+#Printing first 10 rows of the result
 print(comb_df,n=10)
 ```
 
-No major issues stand out, but the `Base R` functions also don't give us much feedback. Let's use tidyverse functions to replicate the provided code. 
+No major issues stand out, but the `Base R` functions also don't give us much feedback. 
+
+
+### Replicating Provided Code in `tidyverse`
+
+Let's use tidyverse functions to replicate the provided code. 
 
 ```{r}
+#Reading the data into tibbles
 math_tbl<-read_csv2("student-mat.csv")
 port_tbl<-read_csv2("student-por.csv")
 
+#Joining the datasets
 #Note that "by" variables do not uniquely identify individuals
 comb_tbl_1<-inner_join(math_tbl,port_tbl,
                      by=c("school","sex","age","address","famsize","Pstatus",
                           "Medu","Fedu","Mjob","Fjob","reason","nursery","internet"))
 ```
 
-Ah, something we missed! A few observations in each dataset are identical across the "by" variables. These observations may reflect siblings of the same age (e.g., twins), or simply identical by coincidence. Let's merge on more variables to overcome this issue.  
+Ah, something we missed! A few observations in each dataset are identical across the "by" variables. These observations may reflect siblings of the same age (e.g., twins), or simply identical by coincidence. 
+
+
+### Joining on Additional Variables
+
+Let's merge on more variables to overcome this issue. In particular, let's join on everything except `G1`, `G2`, `G3`, `paid`, and `absences`.  
 
 ```{r}
+#Creating vector of join columns that includes everything except G1, G2, G3, 
+#paid, and absences
 join_cols<-setdiff(names(math_tbl),c("G1","G2","G3","paid","absences"))
 
+#Joining the datasets with this larger set of by variables
 comb_tbl_2<-inner_join(math_tbl,port_tbl,
                      by=join_cols)
 ```
 
-Great, no more issues with many-to-many relationships! 
+Great, no more issues with many-to-many relationships! We may be losing students due to inconsistencies in the joining variables across datasets, but at least we can now be more confident we have not incorrectly assigned grades to the wrong student. 
+
+
+### Converting Key Categorical Variables to Factors
 
 As a final step, let's identify a few categorical variables of interest and convert them to factors. We will focus on the following:
 - `Pstatus`: parents' cohabitation status, with `T` indicating the parents live together and `A` indicating they live apart
@@ -63,16 +86,19 @@ As a final step, let's identify a few categorical variables of interest and conv
 We will convert these variables to factors across the individual math and Portuguese tibbles and the second combined tibble. 
 
 ```{r}
+#Converting variables to factors in the math dataset
 math_tbl<- math_tbl |>
   mutate(Pstatus=factor(Pstatus,levels=c("T","A"),labels=c("Together","Apart")),
          famsup=as.factor(famsup),activities=as.factor(activities),
          internet=as.factor(internet))
 
+#Converting variables to factors in the Portuguese language dataset
 port_tbl<-port_tbl |>
   mutate(Pstatus=factor(Pstatus,levels=c("T","A"),labels=c("Together","Apart")),
          famsup=as.factor(famsup),activities=as.factor(activities),
          internet=as.factor(internet))
 
+#Converting variables to factors in the combined dataset
 comb_tbl_2<-comb_tbl_2 |>
   mutate(Pstatus=factor(Pstatus,levels=c("T","A"),labels=c("Together","Apart")),
          famsup=as.factor(famsup),activities=as.factor(activities),
@@ -83,18 +109,32 @@ comb_tbl_2<-comb_tbl_2 |>
 
 # Task 2: 
 
+### Final Data Cleaning Steps
+
+#### a. Check Variable Types
+
+Before analyzing the data, we should ensure `R` stored each variable as the appropriate data type. We can look at the structure of the data to see how each variable is stored. 
+
 ```{r}
+#Printing Structure
 str(comb_tbl_2)
 ```
 
 Looking through the data, there are several variables `R` set to numeric type, but that are truly categorical variables. Thus, we can either convert those to character of factor type. For example, the values for `Medu` and `Fedu` are actually codes specifying levels of educational attainment -- a value of 2 for `Medu` indicates a 5th to 9th grade education for the student's mother. Let's convert these variables to factors. We won't worry about labels as these variables are not the focus of our analysis. Note that `failures` is a tricky variable to classify. It is the number of classes failed, but it is top-coded at 4 -- a value of 4 indicates 4 or more failed classes. Thus, we will likely have the best results if we treat `failures` as a factor. 
+
+I have again printed the structure of the tibble to demonstrate the changes made. 
 
 ```{r}
 #Converting non-numeric variables to factors
 comb_tbl_2<-comb_tbl_2 |>
   mutate(across(c(Medu,Fedu,traveltime,studytime,failures,famrel:health),
                 ~as.factor(.x)))
+
+#Printing new structure
+str(comb_tbl_2)
 ```
+
+#### b. Checking for Missing Values
 
 Let's also explore any missing values by initially counting the number of missing values per variable. Fortunately, there are no missing values!
 
@@ -103,6 +143,7 @@ Let's also explore any missing values by initially counting the number of missin
 na_counts<-comb_tbl_2 |>
   summarize(across(everything(),~sum(is.na(.x))))
 
+#Printing counts
 na_counts
 ```
 
@@ -142,7 +183,7 @@ table(comb_tbl_2$Pstatus,comb_tbl_2$famsup,comb_tbl_2$activities,
 There is a lot going on here, so how do we interpret the tables? As an example, the value `97` in the second table indicates there are 97 students who participate in extracurricular activities, have parents who live together, and have family education support. 
 
 
-### Testing Methods for Creating Conditional Two-Way Tables
+#### b. Testing Methods for Creating Conditional Two-Way Tables
 
 There are a few ways to create conditional two-way tables, or two-way contingency tables conditional on the value of a third variable. 
 
@@ -168,7 +209,7 @@ table(comb_tbl_2$Pstatus,comb_tbl_2$famsup,comb_tbl_2$internet)[,,"yes"]
 
 As we expect, we get identical results. What do these counts tell us? Among these students with internet access at home, a slightly lower share of those whose parents live together ($156/(90+156)=0.634$) report having family education support than those whose parents live separately ($18/(8+18)=0.692$). However, there are only 26 students who have internet and whose parents live apart, so it is unlikely this difference is statistically significant. 
 
-### Contingency Tables in the tidyverse
+#### c. Contingency Tables in the tidyverse
 
 While we have so far used the `Base R` `table()` function to create tables, we can also create tables using tidyverse functions. Let's create a two-way table for `Pstatus` and `famsup` unconditional `internet`. 
 
@@ -193,7 +234,7 @@ comb_tbl_2 |>
 This is easier to interpret. Looking at the values, it is now the case that the family support shares are roughly equal for those whose parents live together ($183/(106+183)0.633$) and those whose parents live apart ($20/(20+11)=0.645$).
 
 
-### Creating Bar Plots in `ggplot2`
+#### d. Creating Bar Plots in `ggplot2`
 
 As the final step in our analysis of the categorical variables we selected, we will make bar plots using `ggplot2`. 
 
@@ -227,15 +268,16 @@ Looking at this plot, more than half of students whose parents live together par
 
 
 
-# Numeric Variable Analysis
+### Numeric Variable Analysis
 
 Next, we will analyze the quantitative variables in the dataset, starting with measures of center and spread before transitioning to the evaluation of the relationship between variables. 
 
-### Initial Measures of Center and Spread
+#### a. Initial Measures of Center and Spread
 
 To start, we can look at the mean, median, standard deviation, and the interquartile range (IQR) for a few variables. Let's consider the first period grade in math `G1.x`, the second period grade in math (`G2.x`), and the final grade in math (`G3.x`). 
 
 ```{r}
+#Generating mean, median, sd, and IQR for the three math scores
 comb_tbl_2 |>
   summarize(across(c("G1.x", "G2.x", "G3.x"),list("mean"=mean,"median"=median,
                                                  "sd"=sd,"IQR"=IQR),.names="{.fn}_{.col}"))
@@ -246,6 +288,8 @@ A few things stand out when comparing the grade variables, which range from 0 to
 Let's regenerate the same metrics, but only for students who have internet access at home. 
 
 ```{r}
+#Generating mean, median, sd, and IQR for the three math scores among students
+#with internet at home
 comb_tbl_2 |>
   filter(internet=="yes") |>
   summarize(across(c("G1.x", "G2.x", "G3.x"),list("mean"=mean,"median"=median,
@@ -255,15 +299,242 @@ comb_tbl_2 |>
 Focusing on the means, we see the same downward trend. However, the drop from period one to period two is now minimal; the median period two grade is actually higher than that of period one. Further, the conditional means are higher than the unconditional means across all periods, a potential indication that home internet access supports learning. 
 
 
-### Measures of Center and Spread by Group
+#### b. Measures of Center and Spread Across One Grouping Variable
 
 We can also explore the measures of center and spread for each level of a factor variable. Let's look at mean, median, and standard deviation of the three Portuguese language grades (`G1.y`,`G2.y`,`G3.y`) for each level of `Pstatus` -- the indicator for whether parents live together or apart. 
 
 ```{r}
+#Generating mean, median, sd, and IQR for the three Portuguese language grades
+#by level of Pstatus (whether or not parents live together)
 comb_tbl_2 |>
   group_by(Pstatus) |>
   summarize(across(c("G1.y", "G2.y", "G3.y"),list("mean"=mean,"median"=median,
                                                  "sd"=sd,"IQR"=IQR),.names="{.fn}_{.col}"))
 ```
 
-The most notable finding is that the difference between mean grades widens across the year between these two groups, with the average student whose parents live apart performing increasingly better than their average peer whose parents live together.  
+The most notable finding is that the difference between mean grades for these two groups widens across the year, with the average student whose parents live apart performing increasingly better than their average peer whose parents live together.  
+
+
+#### c. Measures of Center and Spread Across Two Grouping Variables
+
+We are not limited to calculating statistics across levels of a single factor. Let's look at measures of center and spread for the three Portuguese language grades across both `Pstatus` and `activities`. 
+
+```{r}
+#Generating mean, median, sd, and IQR for the three Portuguese language grades
+#by level of Pstatus (whether or not parents live together) and activities
+#(extracurricular activity indicator)
+comb_tbl_2 |>
+  group_by(Pstatus, activities) |>
+  summarize(across(c("G1.y", "G2.y", "G3.y"),list("mean"=mean,"median"=median,
+                                                 "sd"=sd,"IQR"=IQR),.names="{.fn}_{.col}"))
+```
+
+Note that across the year, students who participate in extracurricular activities and whose parents live apart have the highest grades, on average. Additionally, note that students who do not participate in extracurricular activities and whose parents live apart have the lowest average period one grade by the second-highest average final grade. 
+
+
+#### d. Correlations for Each Pair of Numeric Variables
+
+Let's construct a correlation matrix to explore the linear relationships for each pair of numeric variables. 
+
+```{r}
+#Creating a tibble with only the numeric variables
+num_vars<-comb_tbl_2 |>
+  select(age,absences.x,absences.y,G1.x,G2.x,G3.x,G1.y,G2.y,G3.y)
+
+#Generating a matrix of pairwise correlations for the numeric variables
+cor(num_vars)
+```
+
+Looking at the results, I find myself surprised by two things: 
+
+1. The number of absences in a class is negatively correlated with grades in that class, but the relationship is not particularly strong. 
+2. There is only a moderate positive correlation between grades in one class and grades in another (generally around 0.5). 
+
+
+#### e. Plotting Conditional Distributions
+
+Now let's plot some numeric variables! We will start by plotting histograms of final math grades for those who do and do not participate in extracurricular activities.
+
+```{r}
+#Plotting histograms of final math grades by extracurricular activity participation
+ggplot(comb_tbl_2,aes(fill=activities)) +
+  geom_histogram(aes(x=G3.x),bins=21,alpha=0.7) +
+  labs(x="Final Math Grade",y="Number of Students",
+       title="Distribution of Final Math Grade for Students\nWho Do and Do Not Participate in Extracurricular Activities") +
+  scale_fill_discrete("Extracurricular Activities?")
+  
+```
+
+Note that both distributions exhibit outliers in the form of students with a grade of 0. Overall, the distributions are similar, with signs of bimodality (one mode around 10 and another around 15). 
+
+Let's look at the same distributions using kernel density plots.
+
+```{r}
+#Plotting kernel densities of final math grades by extracurricular activity participation
+ggplot(comb_tbl_2,aes(fill=activities)) +
+  geom_density(aes(x=G3.x),alpha=0.7) +
+  labs(x="Final Math Grade",y="Density",
+       title="Distribution of Final Math Grade for Students\nWho Do and Do Not Participate in Extracurricular Activities") +
+  scale_fill_discrete("Extracurricular Activities?")
+  
+```
+
+These plots look similar to the histograms above except that the bimodality is now only distinct for those who participate in extracurricular activities. 
+
+
+Let's wrap up our analysis of these distributions by looking at side-by-side box plots. 
+
+```{r}
+#Plotting histograms of final math grades by extracurricular activity participation
+ggplot(comb_tbl_2,aes(fill=activities)) +
+  geom_boxplot(aes(x=activities,y=G3.x)) +
+  labs(x="Extracurricular Activities?",y="Final Math Grade",
+       title="Boxplots of Final Math Grade for Students\nWho Do and Do Not Participate in Extracurricular Activities") +
+  theme(legend.position="none")
+  
+```
+
+Note that while the boxplots convey a lot of the same information, they also lose a lot of nuance. For example, we cannot see the shape of the distributions (e.g., signs of bimodality), but rather only understand their center and spread. 
+
+
+Let's repeat the process of creating these three plots for another combination of a numeric variable and a factor. This time, let's explore math class absences for those who do and do not report family education support. 
+
+```{r}
+#Plotting histograms of math class absences by family support
+ggplot(comb_tbl_2,aes(fill=famsup)) +
+  geom_histogram(aes(x=absences.x),alpha=0.7) +
+  labs(x="Math Class Absences",y="Number of Students",
+       title="Distribution of Math Class Absences for Students\nWho Do and Do Not Report Family Support") +
+  scale_fill_discrete("Family Support?")
+  
+```
+
+
+Overall, there are not any clear differences in math class absences between those who do and do not receive family support. Both groups have very similar right-skewed distributions. 
+
+Let's see if the kernel densities tell us anything different. 
+
+```{r}
+#Plotting kernel densities of math class absences by family support
+ggplot(comb_tbl_2,aes(fill=famsup)) +
+  geom_density(aes(x=absences.x),alpha=0.7) +
+  labs(x="Math Class Absences",y="Density",
+       title="Distribution of Math Class Absences for Students\nWho Do and Do Not Report Family Support") +
+  scale_fill_discrete("Family Support?")
+  
+```
+
+
+Again, there is no clear difference between the two groups. It is interesting that at least one student missed more than 70 days. That's a lot of days! 
+
+Let's construct box plots to see how these right-skewed data look. 
+
+```{r}
+#Plotting boxplots of math class absences by family support
+ggplot(comb_tbl_2,aes(fill=famsup)) +
+  geom_boxplot(aes(x=famsup,y=absences.x)) +
+  labs(x="Family Support?",y="Math Class Absences",
+       title="Boxplots of Math Class Absences for Students\nWho Do and Do Not Report Family Support") +
+  theme(legend.position="none")
+  
+```
+
+Interesting! We see no whiskers on the lower end and several reported possible outliers on the upper end of the plot. 
+
+#### f. Scatterplots Comparing Final Portuguese Lanugage Grade to Other Variables
+
+We previously looked at correlations among variables. Now let's visualize them. We can start by constructing a scatterplot for final Portuguese language grade and the period one language grade, broken out by whether or not the students have internet at home. Note that we are jittering the points because all grades are reported as whole numbers. 
+
+
+```{r}
+#Scatterplot of period one language grade vs. final language grade by internet access
+ggplot(comb_tbl_2,aes(x=G1.y,y=G3.y,color=internet)) +
+  geom_jitter(alpha=0.7) +
+  labs(x="Period One Grade",y="Final Grade",title="Period One vs. Final Portuguese Language Grade\nfor those Who Do and Do Not have Internet at Home") +
+  scale_color_discrete("Internet at Home?")
+```
+
+Outside of a few outlier points, such as the student with a period one grade of 0 and final grade of 11, there is a strong linear relationship between the two grades. This is not surprising as the period one grade is a component of the final grade. Comparing the two groups (those with and without internet), there are no clear differences in the relationships across these two sets of students.
+
+
+Next, let's plot the final language grade against the final math grade while delineating between those who do and do not have family education support. Again, we will jitter the points so that points are not stacked on top of each other. 
+
+```{r}
+#Scatterplot of final math grade vs. final language grade by family support
+ggplot(comb_tbl_2,aes(x=G3.x,y=G3.y,color=famsup)) +
+  geom_jitter(alpha=0.7) +
+  labs(x="Final Math Grade",y="Final Language Grade",title="Final Math Grade vs. Final Portuguese Language Grade\nfor those Who Do and Do Not have Family Support") +
+  scale_color_discrete("Family Support?")
+```
+
+As we saw with the correlation matrix, the relationship between math and language grades is only moderate. One notable aspect of the plot is the non-unsubstantial number of students with a 0 for their final math grade who earned an 10 or higher in their language class. Comparing across groups, there are no clear differences in the relationship between those who have family support and those who do not. 
+
+#### g. Scatterplots across Levels of a Categorical Variable
+
+Let's replicate the plots from the previous step, but create separate plots for those who participate in extracurricular activities and those who don't. 
+
+We Will start by replicating the first scatterplot.
+
+```{r}
+#Scatterplot of period one language grade vs. final language grade by internet access
+#Separate plots for those who do and do not participate in extracurricular activities
+ggplot(comb_tbl_2,aes(x=G1.y,y=G3.y,color=internet)) +
+  geom_jitter(alpha=0.7) +
+  labs(x="Period One Grade",y="Final Grade",title="Period One vs. Final Portuguese Language Grade\nfor those Who Do and Do Not have Internet at Home",subtitle="Separate Plots for Those Who Do and Do Not Participate in Extracurricular Activities") +
+  scale_color_discrete("Internet at Home?") +
+  facet_wrap(~ activities)
+```
+
+We still do not see any major differences in the relationship between period one and final language grade when we further break out the data by extracurricular activity participation. The only difference of note is that there are more truly poor grades for the group of students who do not participate in extracurricular activities. 
+
+
+Let's see how breaking out the data by extracurricular activity participation affects the relationship between final math grade and final Portuguese language grade. 
+
+```{r}
+#Scatterplot of final math grade vs. final language grade by family support
+#Separate plots for those who do and do not participate in extracurricular activities
+ggplot(comb_tbl_2,aes(x=G3.x,y=G3.y,color=famsup)) +
+  geom_jitter(alpha=0.7) +
+  labs(x="Final Math Grade",y="Final Language Grade",title="Final Math Grade vs. Final Portuguese Language Grade\nfor those Who Do and Do Not have Family Support",subtitle="Separate Plots for Those Who Do and Do Not Participate in Extracurricular Activities") +
+  scale_color_discrete("Family Support?") +
+  facet_wrap(~ activities)
+```
+
+
+Perhaps the most surprising finding from this plot is that there are no clear differences in academic performance between those who do and do not have family support and between those who do and do not participate in extracurricular activities. 
+
+
+#### h. Scatterplots across Levels of Two Categorical Variables
+
+Let's again look at the relationship between period one language grade and final language grade, but this time let's create separate plots for each combination of parental living arrangement and extracurricular activity participation (no/yes). 
+
+```{r}
+#Scatterplot of period one language grade vs. final language grade by internet access
+#Separate plots for each combination of living arrangement and activity participation
+ggplot(comb_tbl_2,aes(x=G1.y,y=G3.y,color=internet)) +
+  geom_jitter(alpha=0.7) +
+  labs(x="Period One Grade",y="Final Grade",title="Period One vs. Final Portuguese Language Grade\nfor those Who Do and Do Not have Internet at Home",subtitle="Separate Plots for Each Combination of Parental Living (Together/Apart) \nand Extracurricular Activity Participation (no/yes)") +
+  scale_color_discrete("Internet at Home?") +
+  facet_grid(Pstatus ~ activities)
+```
+
+Again, no clear sign of any slope change that would indicate a deterioration or improvement in grades across time for a given group. One key point is that it is difficult to draw conclusions for either scatterplot where the parents live apart due to small sample sizes. 
+
+Potentially the most surprising finding from these plots is that all of the students whose parents live apart and who participate in extracurricular activities have internet at home. However, this could be completely coincidental given the small number of students in this group. 
+
+
+Let's revisit the relationship between final language and math grades by also creating separate plots for each combination of parental living arrangement and extracurricular activity participation. 
+
+```{r}
+#Scatterplot of final math grade vs. final language grade by family support
+#Separate plots for each combination of living arrangement and activity participation
+ggplot(comb_tbl_2,aes(x=G3.x,y=G3.y,color=famsup)) +
+  geom_jitter(alpha=0.7) +
+  labs(x="Final Math Grade",y="Final Language Grade",title="Final Math Grade vs. Final Portuguese Language Grade\nfor those Who Do and Do Not have Family Support",subtitle="Separate Plots for Each Combination of Parental Living (Together/Apart) \nand Extracurricular Activity Participation (no/yes)") +
+  scale_color_discrete("Family Support?") +
+  facet_grid(Pstatus ~ activities)
+```
+
+Even with the small sample sizes for the two sets of students whose parents live apart, there are no clear differences in the pattern of the relationship between math and language grades across the four groups. It is the case that none of the students whose parents live apart received a 0 in either course, but this could have occurred by chance. 
+
+One nuanced difference can be seen when comparing the two groups whose parents live together. Note that a large majority of poor math performers whose parents live together and who do not participate in extracurricular activities report having family education support. That is not the case among the students whose parents live together and who *do* participate in extracurricular activities.  
