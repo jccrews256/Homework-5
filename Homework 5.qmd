@@ -1,5 +1,6 @@
 ---
 title: "Homework 5"
+author: "Cass Crews"
 format: html
 editor: visual
 ---
@@ -8,7 +9,7 @@ editor: visual
 
 For this assignment, we will be conducting exploratory data analysis (EDA) on two Portuguese student achievement datasets.
 
-Before we get started, let's load in the suite of core tidyverse packages. 
+Before we get started, let's load in the suite of core `tidyverse` packages and `knitr`. 
 
 ```{r}
 library(tidyverse)
@@ -42,7 +43,7 @@ No major issues stand out, but the `Base R` functions also don't give us much fe
 
 ### Replicating Provided Code in `tidyverse`
 
-Let's use tidyverse functions to replicate the provided code. 
+Let's use `tidyverse` functions to replicate the provided code. 
 
 ```{r}
 #Reading the data into tibbles
@@ -75,18 +76,21 @@ comb_tbl_2<-inner_join(math_tbl,port_tbl,
 
 Great, no more issues with many-to-many relationships! We may be losing students due to inconsistencies in the joining variables across datasets, but at least we can now be more confident we have not incorrectly assigned grades to the wrong student. 
 
-Note that I convert the final combined tibble into an interactive in the next step so that the grader can review my work for Task 1.
+Note that I convert the first 50 rows of the the final combined tibble into an interactive table in the next step so that the grader can review my work for Task 1.
 
 
 ### Converting Key Categorical Variables to Factors
 
 As a final step, let's identify a few categorical variables of interest and convert them to factors. We will focus on the following:
+
 - `Pstatus`: parents' cohabitation status, with `T` indicating the parents live together and `A` indicating they live apart
 - `famsup`: a family educational support indicator (yes/no)
 - `activities`: an extracurricular activities indicator (yes/no)
 - `internet`: a home internet access indicator (yes/no)
 
 We will convert these variables to factors across the individual math and Portuguese tibbles and the second combined tibble. 
+
+To highlight the work done throughout Task 1, I print the first 50 rows of the combined tibble. To explicitly see that I converted these four variables to factors, see the data structure printed at the beginning of Task 2. 
 
 ```{r}
 #Converting variables to factors in the math dataset
@@ -107,8 +111,8 @@ comb_tbl_2<-comb_tbl_2 |>
          famsup=as.factor(famsup),activities=as.factor(activities),
          internet=as.factor(internet))
 
-#Printing the final combined tibble as an interactiv table
-kable(comb_tbl_2)
+#Printing the final combined tibble as an interactive table
+kable(comb_tbl_2[1:50,])
 ```
 
 
@@ -150,7 +154,7 @@ na_counts<-comb_tbl_2 |>
   summarize(across(everything(),~sum(is.na(.x))))
 
 #Printing counts
-na_counts
+kable(na_counts)
 ```
 
 ### Categorical Variable Analysis
@@ -215,9 +219,9 @@ table(comb_tbl_2$Pstatus,comb_tbl_2$famsup,comb_tbl_2$internet)[,,"yes"]
 
 As we expect, we get identical results. What do these counts tell us? Among these students with internet access at home, a slightly lower share of those whose parents live together ($156/(90+156)=0.634$) report having family education support than those whose parents live separately ($18/(8+18)=0.692$). However, there are only 26 students who have internet and whose parents live apart, so it is unlikely this difference is statistically significant. 
 
-#### c. Contingency Tables in the tidyverse
+#### c. Contingency Tables in the `tidyverse`
 
-While we have so far used the `Base R` `table()` function to create tables, we can also create tables using tidyverse functions. Let's create a two-way table for `Pstatus` and `famsup` unconditional `internet`. 
+While we have so far used the `Base R` `table()` function to create tables, we can also create tables using `tidyverse` functions. Let's create a two-way table for `Pstatus` and `famsup` without conditioning on `internet`. 
 
 ```{r}
 #Creating counts by value of Pstatus and famsup
@@ -237,7 +241,7 @@ comb_tbl_2 |>
   pivot_wider(names_from=famsup,values_from=count,names_prefix="famsup_")
 ```
 
-This is easier to interpret. Looking at the values, it is now the case that the family support shares are roughly equal for those whose parents live together ($183/(106+183)0.633$) and those whose parents live apart ($20/(20+11)=0.645$).
+This is easier to interpret. Looking at the values, it is now the case that the family support shares are roughly equal for those whose parents live together ($183/(106+183)=0.633$) and those whose parents live apart ($20/(20+11)=0.645$).
 
 
 #### d. Creating Bar Plots in `ggplot2`
@@ -286,7 +290,8 @@ To start, we can look at the mean, median, standard deviation, and the interquar
 #Generating mean, median, sd, and IQR for the three math scores
 comb_tbl_2 |>
   summarize(across(c("G1.x", "G2.x", "G3.x"),list("mean"=mean,"median"=median,
-                                                 "sd"=sd,"IQR"=IQR),.names="{.fn}_{.col}"))
+                                                 "sd"=sd,"IQR"=IQR),.names="{.fn}_{.col}")) |>
+  kable()
 ```
 
 A few things stand out when comparing the grade variables, which range from 0 to 20. First, mean grade trends down across the year. Second, standard deviation trends up across the year. Meanwhile, the medians and IQRs are the same across all three grades. This indicates that the differences in the distributions for these three sets of grades are likely in the tails. 
@@ -299,7 +304,8 @@ Let's regenerate the same metrics, but only for students who have internet acces
 comb_tbl_2 |>
   filter(internet=="yes") |>
   summarize(across(c("G1.x", "G2.x", "G3.x"),list("mean"=mean,"median"=median,
-                                                 "sd"=sd,"IQR"=IQR),.names="{.fn}_{.col}"))
+                                                 "sd"=sd,"IQR"=IQR),.names="{.fn}_{.col}")) |>
+  kable()
 ```
 
 Focusing on the means, we see the same downward trend. However, the drop from period one to period two is now minimal; the median period two grade is actually higher than that of period one. Further, the conditional means are higher than the unconditional means across all periods, a potential indication that home internet access supports learning. 
@@ -315,7 +321,8 @@ We can also explore the measures of center and spread for each level of a factor
 comb_tbl_2 |>
   group_by(Pstatus) |>
   summarize(across(c("G1.y", "G2.y", "G3.y"),list("mean"=mean,"median"=median,
-                                                 "sd"=sd,"IQR"=IQR),.names="{.fn}_{.col}"))
+                                                 "sd"=sd,"IQR"=IQR),.names="{.fn}_{.col}")) |>
+  kable()
 ```
 
 The most notable finding is that the difference between mean grades for these two groups widens across the year, with the average student whose parents live apart performing increasingly better than their average peer whose parents live together.  
@@ -332,7 +339,8 @@ We are not limited to calculating statistics across levels of a single factor. L
 comb_tbl_2 |>
   group_by(Pstatus, activities) |>
   summarize(across(c("G1.y", "G2.y", "G3.y"),list("mean"=mean,"median"=median,
-                                                 "sd"=sd,"IQR"=IQR),.names="{.fn}_{.col}"))
+                                                 "sd"=sd,"IQR"=IQR),.names="{.fn}_{.col}")) |>
+  kable()
 ```
 
 Note that across the year, students who participate in extracurricular activities and whose parents live apart have the highest grades, on average. Additionally, note that students who do not participate in extracurricular activities and whose parents live apart have the lowest average period one grade by the second-highest average final grade. 
@@ -447,7 +455,7 @@ ggplot(comb_tbl_2,aes(fill=famsup)) +
 
 Interesting! We see no whiskers on the lower end and several reported possible outliers on the upper end of the plot. 
 
-#### f. Scatterplots Comparing Final Portuguese Lanugage Grade to Other Variables
+#### f. Scatterplots Comparing Final Portuguese Language Grade to Other Variables
 
 We previously looked at correlations among variables. Now let's visualize them. We can start by constructing a scatterplot for final Portuguese language grade and the period one language grade, broken out by whether or not the students have internet at home. Note that we are jittering the points because all grades are reported as whole numbers. 
 
@@ -519,7 +527,7 @@ Let's again look at the relationship between period one language grade and final
 #Separate plots for each combination of living arrangement and activity participation
 ggplot(comb_tbl_2,aes(x=G1.y,y=G3.y,color=internet)) +
   geom_jitter(alpha=0.7) +
-  labs(x="Period One Grade",y="Final Grade",title="Period One vs. Final Portuguese Language Grade\nfor those Who Do and Do Not have Internet at Home",subtitle="Separate Plots for Each Combination of Parental Living (Together/Apart) \nand Extracurricular Activity Participation (no/yes)") +
+  labs(x="Period One Grade",y="Final Grade",title="Period One vs. Final Portuguese Language Grade\nfor those Who Do and Do Not have Internet at Home",subtitle="Separate Plots for Each Combination of Parental Living Arrangement (Together/Apart) \nand Extracurricular Activity Participation (no/yes)") +
   scale_color_discrete("Internet at Home?") +
   facet_grid(Pstatus ~ activities)
 ```
@@ -536,7 +544,7 @@ Let's revisit the relationship between final language and math grades by also cr
 #Separate plots for each combination of living arrangement and activity participation
 ggplot(comb_tbl_2,aes(x=G3.x,y=G3.y,color=famsup)) +
   geom_jitter(alpha=0.7) +
-  labs(x="Final Math Grade",y="Final Language Grade",title="Final Math Grade vs. Final Portuguese Language Grade\nfor those Who Do and Do Not have Family Support",subtitle="Separate Plots for Each Combination of Parental Living (Together/Apart) \nand Extracurricular Activity Participation (no/yes)") +
+  labs(x="Final Math Grade",y="Final Language Grade",title="Final Math Grade vs. Final Portuguese Language Grade\nfor those Who Do and Do Not have Family Support",subtitle="Separate Plots for Each Combination of Parental Living Arrangement (Together/Apart) \nand Extracurricular Activity Participation (no/yes)") +
   scale_color_discrete("Family Support?") +
   facet_grid(Pstatus ~ activities)
 ```
